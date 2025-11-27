@@ -35,9 +35,31 @@ const getMinifyOptions = () => ({
 		() => ( {
 			visitor: {
 				TemplateLiteral( path ) {
-					path.node.quasis.forEach( quasi => {
-						quasi.value.raw    = quasi.value.raw.replace( /\s+/g, ' ' );
-						quasi.value.cooked = quasi.value.cooked.replace( /\s+/g, ' ' );
+					path.node.quasis.forEach( ( quasi, index, arr ) => {
+						const isFirst = index === 0;
+						const isLast  = index === arr.length - 1;
+
+						let raw    = quasi.value.raw;
+						let cooked = quasi.value.cooked;
+
+						// Trim whitespace at the end (before ${) only if it contains newlines/tabs
+						if ( ! isLast ) {
+							raw    = raw.replace( /\s*[\r\n\t]\s*$/, '' );
+							cooked = cooked.replace( /\s*[\r\n\t]\s*$/, '' );
+						}
+
+						// Trim whitespace at the start (after }) only if it contains newlines/tabs
+						if ( ! isFirst ) {
+							raw    = raw.replace( /^\s*[\r\n\t]\s*/, '' );
+							cooked = cooked.replace( /^\s*[\r\n\t]\s*/, '' );
+						}
+
+						// Collapse remaining internal whitespace to single spaces
+						raw    = raw.replace( /\s+/g, ' ' );
+						cooked = cooked.replace( /\s+/g, ' ' );
+
+						quasi.value.raw    = raw;
+						quasi.value.cooked = cooked;
 					} );
 				},
 			},
@@ -73,7 +95,7 @@ const minifyAndWriteFile = async ( filePath ) => {
 
 	try {
 		const code = await writeConversion( filePath );
-		await fs.promises.writeFile( minifiedPath, code, 'utf8' );
+		await fs.promises.writeFile( minifiedPath, code + '\n', 'utf8' );
 		return { success: true, source: filePath, output: minifiedPath };
 	} catch ( err ) {
 		return { success: false, source: filePath, error: err.message };
